@@ -98,6 +98,7 @@ def make_news_urls(q, year=None, start=None, end=None):
 urls = {}
 # companies = get_top_companies()
 
+''' 하단의 두 회사 리스트 중 원하는 회사 리스트 하나를 선택해주세요. '''
 companies = [
     '삼성전자', 'SK하이닉스', '삼성바이오로직스', 'NAVER', '셀트리온', 'LG화학', '현대차', 'LG생활건강', '삼성SDI', '삼성물산',
     '현대모비스', 'SK텔레콤', '엔씨소프트', 'POSCO', '카카오', '신한금융지주', 'KB금융지주', '한국전력', '삼성SDS', '기아차',
@@ -198,6 +199,7 @@ res = pd.concat(articles)
 s = pd.Series(range(len(res)), dtype='int32')
 res.set_index([s], inplace=True)
 
+''' 하단의 두 파일 중 본인이 위에서 주석을 해제한 국가에 맞는 이름으로 저장해주세요. '''
 # 저장 파일 이름 국가에 따라 변경하기
 res.to_csv('.\\articles_ko.csv', encoding='CP949', sep=',')  # KOSPI
 # res.to_csv('.\\articles_us.csv', encoding='utf-8', sep=',')  # NASDAQ
