@@ -183,7 +183,7 @@ while idx < len(urls):
     print('Crawling:', idx, '/', len(urls), '회사:', company, 'URL:', url)
     news_df = get_news(url, company)
     if type(news_df) == type(None):
-        for _ in tqdm(range(600)):
+        for _ in tqdm(range(randint(1500, 2100))):
             time.sleep(1)
     else:
         df = add_date_column(news_df, date)
