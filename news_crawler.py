@@ -66,7 +66,6 @@ def get_top_companies(target='ko'):
             new = input('→ 올바른 회사명을 입력해주세요.: ')
             companies[c] = new
 
-    driver.close()
     return companies
 
 
@@ -125,9 +124,8 @@ def get_news(url, company):
     driver.get(url)
     time.sleep(randint(10, 20))
 
-    recaptcha = driver.find_element_by_css_selector('div.g-recaptcha')
+    recaptcha = driver.find_elements_by_css_selector('div.g-recaptcha')
     if len(recaptcha) > 0:
-        driver.close()
         print('CRAWLING IS BLOCKED. PLEASE WAIT 600SEC.')
         return None
 
@@ -153,7 +151,6 @@ def get_news(url, company):
     df = pd.DataFrame(data).T
     df.columns = columns
 
-    driver.close()
     return df
 
 
