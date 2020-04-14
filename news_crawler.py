@@ -1,24 +1,22 @@
-from selenium.webdriver.support import ui, expected_conditions as EC
-from selenium.webdriver.common.by import By
 from selenium import webdriver
 from datetime import datetime
-from random import randint
 from tqdm import tqdm
 import pandas as pd
 import time
 import sys
+import os
 
 options = webdriver.ChromeOptions()
-options.add_argument('headless')  # headless 설정
+# options.add_argument('headless')
 options.add_argument('window-size=1920x1080')
-options.add_argument('lang=ko_KR')  # 이 아래들은 headless 탐지 방지용
+options.add_argument('lang=ko_KR')
 options.add_argument(
     'user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/80.0.3987.163 Safari/537.36')
 
 driver = webdriver.Chrome('.\\chromedriver.exe', options=options)
-driver.implicitly_wait(10)
 
 
+# KOSPI 및 NASDAQ 시가총액 30위 회사 수집
 def get_top_companies(target='ko'):
     global driver
 
@@ -28,7 +26,7 @@ def get_top_companies(target='ko'):
         stock_url = 'https://www.nasdaq.com/market-activity/quotes/nasdaq-ndx-index'
 
     driver.get(stock_url)
-    time.sleep(randint(10, 20))
+    driver.implicitly_wait(5)
 
     companies = []
     if target == 'ko':
@@ -36,39 +34,34 @@ def get_top_companies(target='ko'):
         for title in titles:
             if len(companies) == 30:
                 break
-            if title.text == '삼성전자우':
-                continue
-            companies.append(title.text)
+            if title.text != '삼성전자우':
+                companies.append(title.text)
     elif target == 'us':
-        titles = driver.find_elements_by_css_selector(
-            'td.nasdaq-ndx-index__cell--0')
-        titles = [title.text for title in titles]
-        caps = driver.find_elements_by_css_selector(
-            'td.nasdaq-ndx-index__cell--1')
-        caps = [int(''.join(cap.text.split(','))) for cap in caps]
+        titles = []
+        for title in driver.find_elements_by_css_selector('td.nasdaq-ndx-index__cell--0'):
+            titles.append(title.text)
+
+        caps = []
+        for cap in driver.find_elements_by_css_selector('td.nasdaq-ndx-index__cell--1'):
+            caps.append(int(''.join(cap.text.split(','))))
 
         infos = sorted(list(zip(titles, caps)), key=lambda x: -x[1])
-        companies = []
-        for company, _ in infos[:30]:
-            name = company.split(' ')
-            print()
-            command = input(
-                f'{name} 중 몇 번째 block까지 회사 이름인지 확인해주세요.(제일 첫 번째가 1번): ')
-            ckpt = name[int(command)]
-            if ckpt.endswith(','):
-                name[int(command)] = ckpt[:len(ckpt) - 1]
-            companies.append(' '.join(name[:int(command)]))
+        for company, _ in infos:
+            if len(companies) == 30:
+                break
+            companies.append(company)
 
     for c in range(len(companies)):
         print()
-        command = input(f'{companies[c]}(은)는 올바른 회사명이 맞습니까?(y/n): ')
-        if command != 'n':
-            new = input('→ 올바른 회사명을 입력해주세요.: ')
+        cmd = input(f'{companies[c]}(은)는 찾는 회사입니까(y/n): ')
+        if cmd == 'n':
+            new = input('→ 올바른 이름을 입력해주세요: ')
             companies[c] = new
 
     return companies
 
 
+# 뉴스 수집할 링크 생성기
 def make_news_urls(q, year=None, start=None, end=None):
     today = list(map(int, datetime.today().strftime('%Y-%m-%d').split('-')))
     year, start, end = year or today[0] - 1, start or today[1], end or today[1]
@@ -87,9 +80,9 @@ def make_news_urls(q, year=None, start=None, end=None):
                 return urls
             sy, sm, sd = str(year), str(m), str(d)
             date = sy + '-' + sm + '-' + sd
-            news_url = f'https://www.google.com/search?q=intitle:{q}&tbm=nws&tbs=cdr:1'
-            duration = f',cd_min:{sm}.{sd}.{sy},cd_max:{sm}.{sd}.{sy}'
-            news_url += duration + '&num=100'
+            news_url = f'https://www.google.com/search?q=intitle:{q}&biw=1005&bih=842&source=lnt&tbs=cdr%3A1'
+            duration = f'%2Ccd_min%3A{sm}%2F{sd}%2F{sy}%2Ccd_max%3A{sm}%2F{sd}%2F{sy}'
+            news_url += duration + '&tbm=nws'
             urls[date + '|' + q] = news_url
 
     return urls
@@ -111,33 +104,34 @@ companies = [
 #     'Tesla', 'Gilead Sciences', 'Starbucks', 'QUALCOMM', 'Mondelez International', 'Fiserv', 'Vertex Pharmaceuticals', 'Intuit', 'JD.com', 'Intuitive Surgical'
 # ]  # NASDAQ
 
-'''
-하단의 year의 range 시작점과 끝점 모두 2015 ~ 2019 중 하나로 바꿔주세요.
-'''
+''' 하단의 year의 range 시작점과 끝점 모두 2015 ~ 2019 중 하나로 바꿔주세요. '''
 for company in companies:
     for year in range(2020, 2020 + 1):
         urls.update(make_news_urls(q=company, year=year, start=1, end=12))
 
+# 수집이 필요없는 경우 필터링, 로직 작성 필요
 
+
+# 뉴스 정보 1페이지 수집
 def get_news(url, company):
     global driver
 
     driver.get(url)
-    time.sleep(randint(10, 20))
+    driver.implicitly_wait(5)
 
     recaptcha = driver.find_elements_by_css_selector('div.g-recaptcha')
     if len(recaptcha) > 0:
-        print('CRAWLING IS BLOCKED. PLEASE WAIT 600SEC.')
+        print('CRAWLING IS BLOCKED. PLEASE SOLVE reCAPTCHA.')
         return None
 
     contents_urls = driver.find_elements_by_css_selector('a.l.lLrAF')
-    contents_news = driver.find_elements_by_css_selector('div.gG0TJc')
+    contents_stations = driver.find_elements_by_css_selector('div.gG0TJc')
 
-    news = []
-    for c in contents_news:
-        names = c.find_elements_by_css_selector('span.xQ82C.e8fRJf')
+    stations = []
+    for s in contents_stations:
+        names = s.find_elements_by_css_selector('span.xQ82C.e8fRJf')
         for name in names:
-            news.append(name.text)
+            stations.append(name.text)
 
     urls = []
     for u in contents_urls:
@@ -147,21 +141,22 @@ def get_news(url, company):
     for t in contents_urls:
         titles.append(t.text)
 
-    data = [news, titles, urls, [company] * len(news)]
-    columns = ['news', 'title', 'url', 'company']
+    data = [stations, titles, urls, [company] * len(stations)]
+    columns = ['station', 'title', 'url', 'target']
     df = pd.DataFrame(data).T
     df.columns = columns
 
     return df
 
 
-# 추후에 적당한 신문사들 선정하기
+# 신문사 필터링, 추후 적당한 신문사들 선정하기
 def filter_company(df):
     companies = []
     df = df[df['company'].isin(companies)]
     return df
 
 
+# 날짜 column 추가
 def add_date_column(df, date):
     dates = []
     for d in range(len(df.index)):
@@ -170,6 +165,7 @@ def add_date_column(df, date):
     return df
 
 
+# 데이터 수집
 start = datetime.now()
 print('시작 시간:', start.strftime('%Y-%m-%d %p %I:%M:%S'))
 
@@ -180,26 +176,33 @@ while idx < len(urls):
     date_info, url = urls[idx]
     date, company = date_info.split('|')
 
-    print('Crawling:', idx, '/', len(urls), '회사:', company, 'URL:', url)
+    print('진행도:', idx + 1, '/', len(urls), '회사:', company, 'URL:', url)
     news_df = get_news(url, company)
     if type(news_df) == type(None):
-        for _ in tqdm(range(randint(1500, 2100))):
-            time.sleep(1)
+        if input('SOLVED?(y/n): ') == 'n':
+            if input('WAIT?(y/n): ') == 'y':
+                for _ in tqdm(range(900)):
+                    time.sleep(1)
     else:
         df = add_date_column(news_df, date)
         articles.append(df)
         idx += 1
+        time.sleep(30)
 
 print('총 걸린 시간:', datetime.now() - start)
-driver.close()
+driver.quit()
 
 # 데이터 확인
 print('수집된 기사 전체 갯수:', len(articles))
 res = pd.concat(articles)
-s = pd.Series(range(len(res)), dtype='int32')
-res.set_index([s], inplace=True)
+res.set_index('date', inplace=True)
+
+print('=== COLLECTED ARTICLES ===')
+print(res)
+
+is_exist_csv = [file for file in os.listdir('.\\') if file.endswith('.csv')]
+mode = 'a' if len(is_exist_csv) > 0 else 'w'
 
 ''' 하단의 두 파일 중 본인이 위에서 주석을 해제한 국가에 맞는 이름으로 저장해주세요. '''
-# 저장 파일 이름 국가에 따라 변경하기
-res.to_csv('.\\articles_ko.csv', encoding='CP949', sep=',')  # KOSPI
-# res.to_csv('.\\articles_us.csv', encoding='utf-8', sep=',')  # NASDAQ
+res.to_csv('.\\articles_ko.csv', encoding='utf-8', sep=',', mode=mode)  # KOSPI
+# res.to_csv('.\\articles_us.csv', encoding='utf-8', sep=',', mode=mode)  # NASDAQ
