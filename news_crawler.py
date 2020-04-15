@@ -1,5 +1,5 @@
+from datetime import datetime, timedelta
 from selenium import webdriver
-from datetime import datetime
 from tqdm import tqdm
 import pandas as pd
 import time
@@ -7,7 +7,7 @@ import sys
 import os
 
 options = webdriver.ChromeOptions()
-# options.add_argument('headless')
+options.add_argument('headless')  # 수면시 주석 처리
 options.add_argument('window-size=1920x1080')
 options.add_argument('lang=ko_KR')
 options.add_argument(
@@ -110,6 +110,20 @@ for company in companies:
         urls.update(make_news_urls(q=company, year=year, start=1, end=12))
 
 # 수집이 필요없는 경우 필터링, 로직 작성 필요
+is_exist = 'articles_ko.csv' in os.listdir('.\\')
+if is_exist == True:
+    df = pd.read_csv('.\\articles_ko.csv', encoding='utf-8', sep=',')
+    date = list(df.date.drop_duplicates())[-1]
+    targets = list(df.target.drop_duplicates())
+    date = datetime.strptime(date, '%Y-%m-%d').date()
+
+    keys = list(urls.keys())
+    for key in keys:
+        for target in targets:
+            date_ = datetime.strptime(key.split('|')[0], '%Y-%m-%d').date()
+            target_ = key.split('|')[-1]
+            if date_ <= date and target_ == target:
+                del urls[key]
 
 
 # 뉴스 정보 1페이지 수집
@@ -117,7 +131,8 @@ def get_news(url, company):
     global driver
 
     driver.get(url)
-    driver.implicitly_wait(5)
+    # driver.implicitly_wait(5)  # 비수면시
+    time.sleep(30)  # 수면시
 
     recaptcha = driver.find_elements_by_css_selector('div.g-recaptcha')
     if len(recaptcha) > 0:
@@ -179,30 +194,40 @@ while idx < len(urls):
     print('진행도:', idx + 1, '/', len(urls), '회사:', company, 'URL:', url)
     news_df = get_news(url, company)
     if type(news_df) == type(None):
-        if input('SOLVED?(y/n): ') == 'n':
-            if input('WAIT?(y/n): ') == 'y':
-                for _ in tqdm(range(900)):
-                    time.sleep(1)
+        # if input('SOLVED?(y/n): ') == 'n':  # 비수면시
+        #     if input('WAIT?(y/n): ') == 'y':
+        #         for _ in tqdm(range(900)):
+        #             time.sleep(1)
+        #     else:
+        #         break
+        for _ in tqdm(range(900)):  # 수면시
+            time.sleep(1)
     else:
         df = add_date_column(news_df, date)
         articles.append(df)
         idx += 1
         time.sleep(30)
+    if datetime.now() - start >= timedelta(hours=7):
+        break
 
 print('총 걸린 시간:', datetime.now() - start)
 driver.quit()
 
 # 데이터 확인
 print('수집된 기사 전체 갯수:', len(articles))
-res = pd.concat(articles)
-res.set_index('date', inplace=True)
+articles = pd.concat(articles)
 
 print('=== COLLECTED ARTICLES ===')
-print(res)
+print(articles)
 
-is_exist_csv = [file for file in os.listdir('.\\') if file.endswith('.csv')]
-mode = 'a' if len(is_exist_csv) > 0 else 'w'
+# 기존 데이터와 합치기
+if is_exist == True:
+    res = pd.read_csv('.\\articles_ko.csv', encoding='utf-8', sep=',')
+    res = res.append(articles)
+    res.set_index('date', inplace=True)
+else:
+    res = articles.set_index('date')
 
 ''' 하단의 두 파일 중 본인이 위에서 주석을 해제한 국가에 맞는 이름으로 저장해주세요. '''
-res.to_csv('.\\articles_ko.csv', encoding='utf-8', sep=',', mode=mode)  # KOSPI
-# res.to_csv('.\\articles_us.csv', encoding='utf-8', sep=',', mode=mode)  # NASDAQ
+res.to_csv('.\\articles_ko.csv', encoding='utf-8', sep=',')  # KOSPI
+# res.to_csv('.\\articles_us.csv', encoding='utf-8', sep=',')  # NASDAQ
