@@ -113,7 +113,8 @@ for company in companies:
 is_exist = 'articles_ko.csv' in os.listdir('.\\')
 if is_exist == True:
     df = pd.read_csv('.\\articles_ko.csv', encoding='utf-8', sep=',')
-    date = list(df.date.drop_duplicates())[-1]
+    date = sorted(list(df.date.drop_duplicates()),
+                  key=lambda x: datetime.strptime(x, '%Y-%m-%d'))[-1]
     targets = list(df.target.drop_duplicates())
     date = datetime.strptime(date, '%Y-%m-%d').date()
 
